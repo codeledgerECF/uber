@@ -1,0 +1,11 @@
+go_library(
+    name = "tracker",
+    srcs = ["location_tracker.go"],
+    importpath = "github.com/uber/dispatch/internal/tracker",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//internal/queue:queue",
+        "//shared/config:config",
+        "//shared/observability:observability",
+    ],
+)

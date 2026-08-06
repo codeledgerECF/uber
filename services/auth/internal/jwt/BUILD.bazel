@@ -1,0 +1,9 @@
+go_library(
+    name = "jwt",
+    srcs = ["jwt.go", "claims.go"],
+    importpath = "github.com/uber/auth/internal/jwt",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//shared/config:config",
+    ],
+)

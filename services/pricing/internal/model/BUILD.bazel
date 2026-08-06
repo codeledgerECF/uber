@@ -1,0 +1,6 @@
+go_library(
+    name = "model",
+    srcs = ["fare.go", "estimate.go"],
+    importpath = "github.com/uber/pricing/internal/model",
+    visibility = ["//visibility:public"],
+)

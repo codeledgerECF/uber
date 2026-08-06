@@ -1,0 +1,10 @@
+go_library(
+    name = "session",
+    srcs = ["session.go", "session_data.go"],
+    importpath = "github.com/uber/auth/internal/session",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//shared/config:config",
+        "//shared/observability:observability",
+    ],
+)

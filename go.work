@@ -1,0 +1,9 @@
+go 1.22
+
+use (
+    ./services/auth
+    ./services/pricing
+    ./services/matching
+    ./services/dispatch
+    ./shared
+)

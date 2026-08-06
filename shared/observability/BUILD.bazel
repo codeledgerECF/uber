@@ -1,0 +1,9 @@
+go_library(
+    name = "observability",
+    srcs = ["metrics.go", "tracing.go"],
+    importpath = "github.com/uber/shared/observability",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//config:config",
+    ],
+)

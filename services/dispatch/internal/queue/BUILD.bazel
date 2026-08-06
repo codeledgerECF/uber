@@ -1,0 +1,10 @@
+go_library(
+    name = "queue",
+    srcs = ["kafka_consumer.go"],
+    importpath = "github.com/uber/dispatch/internal/queue",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//shared/config:config",
+        "//shared/observability:observability",
+    ],
+)

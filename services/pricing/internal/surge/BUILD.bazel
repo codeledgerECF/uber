@@ -1,0 +1,12 @@
+go_library(
+    name = "surge",
+    srcs = ["calculator.go", "predictor.go"],
+    importpath = "github.com/uber/pricing/internal/surge",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//internal/model:model",
+        "//internal/geo:geo",
+        "//shared/config:config",
+        "//shared/observability:observability",
+    ],
+)

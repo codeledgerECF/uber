@@ -1,0 +1,11 @@
+go_library(
+    name = "algorithm",
+    srcs = ["hungarian.go", "scorer.go"],
+    importpath = "github.com/uber/matching/internal/algorithm",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//internal/geospatial:geospatial",
+        "//shared/config:config",
+        "//shared/observability:observability",
+    ],
+)

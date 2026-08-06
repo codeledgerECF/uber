@@ -1,0 +1,9 @@
+go_library(
+    name = "geo",
+    srcs = ["zone.go"],
+    importpath = "github.com/uber/pricing/internal/geo",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//shared/observability:observability",
+    ],
+)

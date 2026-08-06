@@ -1,0 +1,12 @@
+go_library(
+    name = "handler",
+    srcs = ["auth_handler.go", "middleware.go"],
+    importpath = "github.com/uber/auth/internal/handler",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//internal/jwt:jwt",
+        "//internal/session:session",
+        "//shared/config:config",
+        "//shared/observability:observability",
+    ],
+)

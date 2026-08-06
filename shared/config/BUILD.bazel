@@ -1,0 +1,6 @@
+go_library(
+    name = "config",
+    srcs = ["config.go", "loader.go"],
+    importpath = "github.com/uber/shared/config",
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,6 @@
+go_library(
+    name = "geospatial",
+    srcs = ["grid.go", "haversine.go"],
+    importpath = "github.com/uber/matching/internal/geospatial",
+    visibility = ["//visibility:public"],
+)
