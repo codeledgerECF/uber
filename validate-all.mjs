@@ -1,22 +1,21 @@
 #!/usr/bin/env node
 /**
  * Full-repo dep-graph validation for the Uber-like demo monorepo.
- * Requires: codeledger-blackbox repo built (packages/repo/dist/dep-graph.js)
+ * Self-contained — dep-graph.js is bundled alongside this script.
  *
  * Usage:
- *   node validate-all.mjs [repo-root] [codeledger-blackbox-root]
+ *   node validate-all.mjs [repo-root]
  *
- * Note: requires the dep-graph build from codeledger-blackbox that includes
- * Go multi-module + Bazel support (PR #809, shipping after v0.10.58).
- * v0.10.58 and earlier will return 0 edges on this repo layout.
+ * Includes Go multi-module go.mod discovery, BUILD.bazel parsing, and nested
+ * Java source root resolution (PR #809, after v0.10.58).
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, extname, relative } from 'node:path';
 
 const REPO_ROOT = process.argv[2] ?? new URL('.', import.meta.url).pathname;
-const CL_ROOT = process.argv[3] ?? '/home/user/codeledger-blackbox';
 
-const { buildDepGraph } = await import(join(CL_ROOT, 'packages/repo/dist/dep-graph.js'));
+
+const { buildDepGraph } = await import(new URL('./codeledger-lib/dep-graph.js', import.meta.url));
 
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '.codeledger']);
 const CODE_EXTS = new Set(['.go', '.java', '.kt', '.ts', '.tsx', '.js', '.py', '.rs']);
