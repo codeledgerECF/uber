@@ -1,22 +1,25 @@
 #!/usr/bin/env node
 /**
  * Full-repo dep-graph validation for the Uber-like demo monorepo.
- * Feeds Go, Java, and all other indexed files to buildDepGraph.
+ * Requires: codeledger-blackbox repo built (packages/repo/dist/dep-graph.js)
+ *
+ * Usage:
+ *   node validate-all.mjs [repo-root] [codeledger-blackbox-root]
+ *
+ * Note: requires the dep-graph build from codeledger-blackbox that includes
+ * Go multi-module + Bazel support (PR #809, shipping after v0.10.58).
+ * v0.10.58 and earlier will return 0 edges on this repo layout.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, extname, relative } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-const REPO_ROOT = process.argv[2] ?? '/tmp/uber-demo';
+const REPO_ROOT = process.argv[2] ?? new URL('.', import.meta.url).pathname;
 const CL_ROOT = process.argv[3] ?? '/home/user/codeledger-blackbox';
 
-// Load buildDepGraph from built dist
 const { buildDepGraph } = await import(join(CL_ROOT, 'packages/repo/dist/dep-graph.js'));
 
-// ── File walker ──────────────────────────────────────────────────────────────
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '.codeledger']);
 const CODE_EXTS = new Set(['.go', '.java', '.kt', '.ts', '.tsx', '.js', '.py', '.rs']);
-
 const LANG_MAP = {
   '.go': 'go', '.java': 'java', '.kt': 'kotlin',
   '.ts': 'typescript', '.tsx': 'typescript',
@@ -48,104 +51,64 @@ function walk(dir, base = dir) {
   return infos;
 }
 
-// ── Run ──────────────────────────────────────────────────────────────────────
 const files = walk(REPO_ROOT);
 console.log(`\nRepo: ${REPO_ROOT}`);
 console.log(`Total indexed files: ${files.length}`);
 
 const byLang = {};
 for (const f of files) byLang[f.language] = (byLang[f.language] ?? 0) + 1;
-for (const [lang, count] of Object.entries(byLang).sort()) {
+for (const [lang, count] of Object.entries(byLang).sort())
   console.log(`  ${lang.padEnd(12)} ${count} files`);
-}
-console.log('');
 
 const graph = buildDepGraph(REPO_ROOT, files);
 
-// Count edges
-let totalEdges = 0;
-let filesWithEdges = 0;
-const depCounts = {}; // target → how many files import it
-
+let totalEdges = 0, filesWithEdges = 0;
+const depCounts = {};
 for (const [src, targets] of Object.entries(graph.imports ?? {})) {
-  if (targets.length > 0) {
-    totalEdges += targets.length;
-    filesWithEdges++;
-    for (const t of targets) {
-      depCounts[t] = (depCounts[t] ?? 0) + 1;
-    }
-  }
+  if (targets.length > 0) { totalEdges += targets.length; filesWithEdges++; }
+  for (const t of targets) depCounts[t] = (depCounts[t] ?? 0) + 1;
 }
 
-console.log(`Total edges resolved:    ${totalEdges}`);
+console.log(`\nTotal edges resolved:     ${totalEdges}`);
 console.log(`Files with outgoing deps: ${filesWithEdges}`);
 
-// DI interface detection
-const diFiles = Object.entries(graph.imports ?? {}).filter(([, targets]) =>
-  targets.some(t => t.includes('Interface') || t.includes('I') && t.match(/\/I[A-Z]/))
-);
-if (diFiles.length > 0) {
-  console.log(`\nDI-style edges (interface→impl):`);
-  for (const [src, targets] of diFiles) {
-    for (const t of targets) console.log(`  ${src} → ${t}`);
-  }
-} else {
-  // Show any Java edges
-  const javaEdges = Object.entries(graph.imports ?? {}).filter(([src]) => src.endsWith('.java'));
-  if (javaEdges.length > 0) {
-    console.log(`\nJava import edges:`);
-    for (const [src, targets] of javaEdges) {
-      for (const t of targets) console.log(`  ${src} → ${t}`);
-    }
-  }
+const goEdges = Object.entries(graph.imports ?? {})
+  .filter(([s]) => s.endsWith('.go')).reduce((s, [, ts]) => s + ts.length, 0);
+const javaEdges = Object.entries(graph.imports ?? {})
+  .filter(([s]) => s.endsWith('.java')).reduce((s, [, ts]) => s + ts.length, 0);
+console.log(`Go edges:  ${goEdges}`);
+console.log(`Java edges: ${javaEdges}`);
+
+const sample = Object.entries(graph.imports ?? {})
+  .filter(([s]) => s.endsWith('.go')).slice(0, 5);
+if (sample.length) {
+  console.log('\nGo edge sample:');
+  for (const [src, ts] of sample) console.log(`  ${src}\n    → ${ts[0]}`);
 }
 
-// Go module edges
-const goEdges = Object.entries(graph.imports ?? {}).filter(([src]) => src.endsWith('.go'));
-if (goEdges.length > 0) {
-  console.log(`\nGo edges (sample, first 20):`);
-  let shown = 0;
-  for (const [src, targets] of goEdges) {
-    for (const t of targets) {
-      if (shown++ < 20) console.log(`  ${src} → ${t}`);
-    }
-  }
-  const totalGo = goEdges.reduce((s, [, ts]) => s + ts.length, 0);
-  console.log(`  … total Go edges: ${totalGo}`);
+const jSample = Object.entries(graph.imports ?? {})
+  .filter(([s]) => s.endsWith('.java') && graph.imports[s]?.length);
+if (jSample.length) {
+  console.log('\nJava edges:');
+  for (const [src, ts] of jSample.slice(0, 6))
+    for (const t of ts) console.log(`  ${src.split('/').pop()} → ${t.split('/').pop()}`);
 }
 
-// Bazel edges
-const bazelTargets = Object.values(graph.imports ?? {}).flat().filter(t =>
-  Object.keys(graph.imports ?? {}).includes(t) &&
-  Object.entries(graph.imports ?? {}).some(([src]) => src.includes('BUILD') || src.endsWith('.go'))
-);
-
-// Most-imported files
-const top = Object.entries(depCounts).sort(([, a], [, b]) => b - a).slice(0, 8);
-if (top.length > 0) {
-  console.log(`\nMost-imported files (dependent count):`);
-  for (const [path, count] of top) {
-    console.log(`  ${count.toString().padStart(3)}  ${path}`);
-  }
+const top = Object.entries(depCounts).sort(([, a], [, b]) => b - a).slice(0, 5);
+if (top.length) {
+  console.log('\nMost-imported (hub files):');
+  for (const [p, c] of top) console.log(`  ${c.toString().padStart(3)}  ${p}`);
 }
 
-// Cross-package edges
-const crossPkg = Object.entries(graph.imports ?? {}).flatMap(([src, targets]) =>
-  targets.filter(t => {
-    const srcDir = src.split('/').slice(0, -1).join('/');
-    const tDir = t.split('/').slice(0, -1).join('/');
-    return srcDir !== tDir;
-  }).map(t => [src, t])
-);
-console.log(`\nCross-package edges: ${crossPkg.length} / ${totalEdges} total (${totalEdges > 0 ? Math.round(crossPkg.length / totalEdges * 100) : 0}%)`);
+const crossPkg = Object.entries(graph.imports ?? {}).flatMap(([src, ts]) =>
+  ts.filter(t => src.split('/').slice(0,-1).join('/') !== t.split('/').slice(0,-1).join('/')));
+console.log(`\nCross-package edges: ${crossPkg.length} / ${totalEdges} (${totalEdges ? Math.round(crossPkg.length/totalEdges*100) : 0}%)`);
 
-// Service module breakdown
-const services = ['services/auth', 'services/pricing', 'services/matching', 'services/dispatch', 'shared', 'java-services'];
+const services = ['services/auth','services/pricing','services/matching','services/dispatch','shared','java-services'];
 console.log('\nEdges by service:');
 for (const svc of services) {
-  const svcEdges = Object.entries(graph.imports ?? {})
-    .filter(([src]) => src.startsWith(svc))
-    .reduce((s, [, ts]) => s + ts.length, 0);
-  const svcFiles = files.filter(f => f.path.startsWith(svc)).length;
-  console.log(`  ${svc.padEnd(30)} ${svcEdges.toString().padStart(3)} edges  (${svcFiles} files)`);
+  const e = Object.entries(graph.imports ?? {})
+    .filter(([s]) => s.startsWith(svc)).reduce((s, [, ts]) => s + ts.length, 0);
+  const f = files.filter(f => f.path.startsWith(svc)).length;
+  console.log(`  ${svc.padEnd(32)} ${e.toString().padStart(3)} edges  (${f} files)`);
 }
